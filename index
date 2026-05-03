@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>VDC SAFETY - HỆ THỐNG ĐIỂM DANH</title>
+    <!-- Có thể thêm icon trang web (favicon) ở đây nếu muốn -->
+    <style>
+        /* CSS reset để Iframe chiếm trọn 100% màn hình điện thoại, trông như App thật */
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Chống cuộn trang dư thừa */
+            background-color: #f1f5f9;
+        }
+        iframe {
+            width: 100%;
+            height: 100%;
+            border: none;
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <!-- 
+      QUAN TRỌNG NHẤT: Thuộc tính allow="camera; geolocation" 
+      Bắt buộc phải có để Iframe xin được quyền chụp ảnh và lấy tọa độ GPS từ trình duyệt 
+    -->
+    <iframe 
+        src="https://script.google.com/macros/s/AKfycbwMTIPpVMBtD-b0KuFbWwtxsSNdkjVwM7d6N3qf47Y5-NvNdE0YuVisc0OVbMruPw0Y/exec" 
+        allow="camera *; geolocation *; microphone *"
+        title="VDC Safety System">
+    </iframe>
+</body>
+</html>
