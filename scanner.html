@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Scanner Giấy Thi A4</title>
+    <script async src="https://docs.opencv.org/4.5.5/opencv.js" type="text/javascript"></script>
+    <style>
+        body { font-family: sans-serif; text-align: center; background: #f4f4f9; margin: 0; padding: 20px; }
+        .container { max-width: 800px; margin: auto; background: white; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        video, canvas { width: 100%; max-width: 500px; border-radius: 5px; background: #000; }
+        .controls { margin: 20px 0; }
+        button { padding: 12px 24px; font-size: 16px; cursor: pointer; border: none; border-radius: 5px; color: white; background: #007bff; }
+        button:disabled { background: #ccc; }
+        #status { color: red; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Scanner Tài Liệu A4</h2>
+    <p id="status">Đang tải thư viện xử lý ảnh (OpenCV)...</p>
+    
+    <div class="video-wrap">
+        <video id="video" autoplay playsinline></video>
+    </div>
+
+    <div class="controls">
+        <button id="captureBtn" disabled>Quét và Cắt Ảnh</button>
+    </div>
+
+    <h3>Kết quả sau khi xử lý:</h3>
+    <canvas id="outputCanvas"></canvas>
+    
+    <div class="controls">
+        <button id="downloadBtn" style="background: #28a745; display: none;">Tải ảnh về</button>
+    </div>
+</div>
+
+<script>
+    const video = document.getElementById('video');
+    const captureBtn = document.getElementById('captureBtn');
+    const outputCanvas = document.getElementById('outputCanvas');
+    const status = document.getElementById('status');
+    const downloadBtn = document.getElementById('downloadBtn');
+
+    // 1. Khởi tạo Camera
+    async function startCamera() {
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ 
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
+            });
+            video.srcObject = stream;
+        } catch (err) {
+            status.innerText = "Lỗi truy cập Camera: " + err.message;
+        }
+    }
+
+    // 2. Chờ OpenCV sẵn sàng
+    window.onOpenCvReady = () => {
+        status.innerText = "Sẵn sàng!";
+        status.style.color = "green";
+        captureBtn.disabled = false;
+        startCamera();
+    };
+
+    // Kiểm tra định kỳ xem cv đã load chưa (OpenCV.js load async)
+    let checkCv = setInterval(() => {
+        if (typeof cv !== 'undefined' && cv.Mat) {
+            onOpenCvReady();
+            clearInterval(checkCv);
+        }
+    }, 500);
+
+    // 3. Xử lý quét ảnh
+    captureBtn.onclick = () => {
+        const src = new cv.Mat(video.videoHeight, video.videoWidth, cv.CV_8UC4);
+        const cap = new cv.VideoCapture(video);
+        cap.read(src);
+
+        let dst = src.clone();
+        cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
+        cv.GaussianBlur(dst, dst, new cv.Size(5, 5), 0);
+        cv.Canny(dst, dst, 75, 200);
+
+        let contours = new cv.MatVector();
+        let hierarchy = new cv.Mat();
+        cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
+
+        let maxArea = 0;
+        let maxContourIndex = -1;
+
+        for (let i = 0; i < contours.size(); ++i) {
+            let area = cv.contourArea(contours.get(i));
+            if (area > maxArea) {
+                maxArea = area;
+                maxContourIndex = i;
+            }
+        }
+
+        if (maxContourIndex !== -1) {
+            let contour = contours.get(maxContourIndex);
+            let peri = cv.arcLength(contour, true);
+            let approx = new cv.Mat();
+            cv.approxPolyDP(contour, approx, 0.02 * peri, true);
+
+            // Nếu tìm thấy 4 góc của tờ giấy
+            if (approx.rows === 4) {
+                processPerspective(src, approx);
+            } else {
+                alert("Không nhận diện rõ khung giấy. Vui lòng đặt giấy trên nền tương phản.");
+                cv.imshow('outputCanvas', src);
+            }
+            approx.delete();
+        } else {
+            cv.imshow('outputCanvas', src);
+        }
+
+        src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
+        downloadBtn.style.display = 'inline-block';
+    };
+
+    function processPerspective(src, approx) {
+        // Sắp xếp tọa độ 4 góc
+        let points = [];
+        for (let i = 0; i < 4; i++) {
+            points.push({ x: approx.data32S[i * 2], y: approx.data32S[i * 2 + 1] });
+        }
+
+        points.sort((a, b) => a.y - b.y);
+        let top = points.slice(0, 2).sort((a, b) => a.x - b.x);
+        let bottom = points.slice(2, 4).sort((a, b) => a.x - b.x);
+
+        let srcCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            top[0].x, top[0].y, top[1].x, top[1].y,
+            bottom[0].x, bottom[0].y, bottom[1].x, bottom[1].y
+        ]);
+
+        // Tỉ lệ A4
+        const width = 800;
+        const height = 1131; 
+
+        let dstCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [
+            0, 0, width, 0,
+            0, height, width, height
+        ]);
+
+        let M = cv.getPerspectiveTransform(srcCoords, dstCoords);
+        let result = new cv.Mat();
+        cv.warpPerspective(src, result, M, new cv.Size(width, height));
+
+        // Tăng độ tương phản (Black & White effect)
+        cv.cvtColor(result, result, cv.COLOR_RGBA2GRAY);
+        cv.adaptiveThreshold(result, result, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 10);
+
+        cv.imshow('outputCanvas', result);
+        
+        result.delete(); M.delete(); srcCoords.delete(); dstCoords.delete();
+    }
+
+    downloadBtn.onclick = () => {
+        const link = document.createElement('a');
+        link.download = 'scan_giay_thi.png';
+        link.href = outputCanvas.toDataURL();
+        link.click();
+    };
+</script>
+
+</body>
+</html>
