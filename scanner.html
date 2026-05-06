@@ -2,52 +2,124 @@
 <html lang="vi">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner HEPC v1.5.0</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Scanner HEPC App v1.6.0</title>
     <script async src="https://docs.opencv.org/4.5.5/opencv.js" type="text/javascript"></script>
     <style>
-        body { font-family: sans-serif; text-align: center; background: #f0f2f5; margin: 0; padding: 10px; }
-        .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
-        .version-tag { position: absolute; top: 10px; right: 15px; font-size: 11px; color: #999; font-weight: bold; }
-        .video-container { width: 100%; background: #000; border-radius: 10px; overflow: hidden; margin-top: 10px; }
-        video, canvas { width: 100%; height: auto; display: block; border-radius: 8px; }
-        #canvasPreview { display: none; margin-top: 10px; border: 2px solid #007bff; }
-        .controls { margin: 20px 0; display: flex; flex-direction: column; gap: 10px; }
-        button { padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; color: white; }
-        #btnCapture { background: #6c757d; }
+        /* Reset và khóa cuộn trang */
+        * { box-sizing: border-box; touch-action: manipulation; }
+        html, body { 
+            margin: 0; padding: 0; 
+            width: 100%; height: 100%; 
+            overflow: hidden; /* Khóa cuộn trang */
+            background: #000; 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+        }
+
+        /* Container Full Screen */
+        .app-container {
+            display: flex;
+            flex-direction: column;
+            width: 100%;
+            height: 100vh; /* Full chiều cao màn hình */
+            position: relative;
+        }
+
+        /* Header App */
+        .app-header {
+            padding: 15px;
+            color: white;
+            text-align: center;
+            background: rgba(0,0,0,0.5);
+            z-index: 10;
+        }
+        .version-tag { font-size: 10px; opacity: 0.7; letter-spacing: 1px; }
+        h3 { margin: 5px 0 0; font-size: 18px; text-transform: uppercase; }
+
+        /* Vùng hiển thị Camera/Preview */
+        .viewer {
+            flex: 1; /* Tự động giãn nở chiếm hết phần còn lại */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: #1a1a1a;
+            position: relative;
+            overflow: hidden;
+        }
+        video, canvas {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+        }
+        #canvasPreview { display: none; }
+
+        /* Thanh điều khiển phía dưới (Footer) */
+        .app-footer {
+            padding: 20px;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 10;
+        }
+
+        button {
+            padding: 16px;
+            font-size: 16px;
+            font-weight: bold;
+            border: none;
+            border-radius: 12px;
+            color: white;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.1s active;
+        }
+        button:active { transform: scale(0.98); }
+        
+        #btnCapture { background: #fff; color: #000; }
         #btnProcess { background: #007bff; display: none; }
         #btnDownload { background: #28a745; display: none; }
+
+        /* Loading Overlay */
         #loadingOverlay {
-            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.8); z-index: 1000; flex-direction: column; justify-content: center; align-items: center; color: white;
+            display: none; position: absolute; top: 0; left: 0; 
+            width: 100%; height: 100%; background: rgba(0,0,0,0.8);
+            z-index: 100; flex-direction: column; justify-content: center; align-items: center; color: white;
         }
-        .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
+        .spinner {
+            width: 40px; height: 40px; border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db; border-radius: 50%;
+            animation: spin 1s linear infinite; margin-bottom: 15px;
+        }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        
+        #status { font-size: 12px; color: #aaa; text-align: center; margin-top: 5px; }
     </style>
 </head>
 <body>
 
-<div id="loadingOverlay">
-    <div class="spinner"></div>
-    <div id="loadingText">Đang xử lý...</div>
-</div>
+<div class="app-container">
+    <div id="loadingOverlay">
+        <div class="spinner"></div>
+        <div>ĐANG XỬ LÝ HEPC...</div>
+    </div>
 
-<div class="container">
-    <div class="version-tag">VERSION 1.5.0 HEPC</div>
-    <h3>MÁY QUÉT BÀI THI HEPC</h3>
-    
-    <div class="video-container">
+    <div class="app-header">
+        <div class="version-tag">VERSION 1.6.0 HEPC</div>
+        <h3>Máy Quét Bài Thi</h3>
+        <div id="status">Đang khởi động hệ thống...</div>
+    </div>
+
+    <div class="viewer">
         <video id="video" autoplay playsinline></video>
         <canvas id="canvasPreview"></canvas>
     </div>
 
-    <div class="controls">
-        <button id="btnCapture">BƯỚC 1: CHỤP ẢNH</button>
-        <button id="btnProcess">BƯỚC 2: TÌM KHUNG & CẮT</button>
-        <button id="btnDownload">BƯỚC 3: LƯU FILE QUÉT</button>
+    <div class="app-footer">
+        <button id="btnCapture">CHỤP ẢNH</button>
+        <button id="btnProcess">CẮT KHUNG & LÀM NÉT</button>
+        <button id="btnDownload">LƯU BÀI QUÉT</button>
     </div>
-
-    <p id="status" style="font-size: 12px; color: #666;">Đang khởi tạo...</p>
 </div>
 
 <script>
@@ -59,21 +131,22 @@
     let loading = document.getElementById('loadingOverlay');
     let status = document.getElementById('status');
 
-    async function init() {
+    async function initCamera() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
-                video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
+                video: { facingMode: "environment", width: { ideal: 1920 }, height: { ideal: 1080 } } 
             });
             video.srcObject = stream;
-            status.innerText = "Sẵn sàng chụp ảnh.";
+            status.innerText = "Sẵn sàng quét";
         } catch (e) {
             status.innerText = "Lỗi Camera: " + e.message;
+            alert("Vui lòng cấp quyền camera và chạy trên HTTPS");
         }
     }
 
     function onOpenCvReady() {
         if (typeof cv !== 'undefined' && cv.Mat) {
-            init();
+            initCamera();
         } else {
             setTimeout(onOpenCvReady, 500);
         }
@@ -81,6 +154,15 @@
     window.onload = onOpenCvReady;
 
     btnCapture.onclick = () => {
+        if (btnCapture.innerText === "CHỤP LẠI") {
+            video.style.display = 'block';
+            canvasPreview.style.display = 'none';
+            btnCapture.innerText = "CHỤP ẢNH";
+            btnProcess.style.display = 'none';
+            btnDownload.style.display = 'none';
+            return;
+        }
+
         canvasPreview.width = video.videoWidth;
         canvasPreview.height = video.videoHeight;
         let ctx = canvasPreview.getContext('2d');
@@ -90,12 +172,11 @@
         canvasPreview.style.display = 'block';
         btnCapture.innerText = "CHỤP LẠI";
         btnProcess.style.display = 'block';
-        status.innerText = "Đã chụp ảnh tĩnh. Nhấn Bước 2 để cắt khung.";
+        status.innerText = "Đã lấy hình tĩnh";
     };
 
     btnProcess.onclick = () => {
         loading.style.display = 'flex';
-        
         setTimeout(() => {
             let src = cv.imread(canvasPreview);
             let dst = new cv.Mat();
@@ -105,16 +186,15 @@
             try {
                 cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
                 
-                // Cập nhật HEPC v1.5.0: Tiền xử lý để khử bóng đổ
+                // Khử bóng đổ HEPC v1.5+
                 let msk = new cv.Mat();
                 cv.medianBlur(dst, msk, 15);
                 cv.divide(dst, msk, dst, 255.0);
                 cv.normalize(dst, dst, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
                 msk.delete();
 
-                // Tiếp tục xử lý biên
-                cv.GaussianBlur(dst, dst, new cv.Size(15, 15), 0); // Bộ lọc lớn hơn để giảm nhiễu bóng
-                cv.Canny(dst, dst, 20, 80); // Giảm ngưỡng Canny để tăng độ nhạy
+                cv.GaussianBlur(dst, dst, new cv.Size(15, 15), 0);
+                cv.Canny(dst, dst, 20, 80);
                 cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                 let maxArea = 0, maxIdx = -1;
@@ -126,25 +206,25 @@
                 if (maxIdx !== -1) {
                     let approx = new cv.Mat();
                     let peri = cv.arcLength(contours.get(maxIdx), true);
-                    cv.approxPolyDP(contours.get(maxIdx), approx, 0.01 * peri, true); // Giảm độ thô approx để khớp biên tốt hơn
+                    cv.approxPolyDP(contours.get(maxIdx), approx, 0.01 * peri, true);
 
                     if (approx.rows === 4) {
                         doWarp(src, approx);
                         btnProcess.style.display = 'none';
                         btnDownload.style.display = 'block';
-                        status.innerText = "Đã cắt thành công!";
+                        status.innerText = "Đã quét thành công";
                     } else {
-                        throw new Error("Không nhận diện được đủ 4 góc do bóng đổ lớn. Hãy thử ảnh ít bóng hơn.");
+                        throw new Error("Không nhận dạng rõ khung. Vui lòng thử lại.");
                     }
                     approx.delete();
                 } else {
-                    throw new Error("Không nhận diện được khung bài thi.");
+                    throw new Error("Không tìm thấy giấy thi.");
                 }
             } catch (e) {
                 alert(e.message);
-                cv.imshow(canvasPreview, src);
+                cv.imshow(canvasPreview, src); // Trả về ảnh gốc
                 btnDownload.style.display = 'block';
-                status.innerText = "Sử dụng ảnh gốc.";
+                btnProcess.style.display = 'none';
             } finally {
                 src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
                 loading.style.display = 'none';
@@ -155,7 +235,6 @@
     function doWarp(src, approx) {
         let pts = [];
         for (let i = 0; i < 4; i++) pts.push({ x: approx.data32S[i * 2], y: approx.data32S[i * 2 + 1] });
-        
         pts.sort((a, b) => a.y - b.y);
         let top = pts.slice(0, 2).sort((a, b) => a.x - b.x);
         let bottom = pts.slice(2, 4).sort((a, b) => a.x - b.x);
@@ -170,7 +249,6 @@
         
         cv.cvtColor(result, result, cv.COLOR_RGBA2GRAY);
         cv.adaptiveThreshold(result, result, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 15);
-        
         cv.imshow(canvasPreview, result);
         
         result.delete(); M.delete(); srcCoords.delete(); dstCoords.delete();
@@ -178,7 +256,7 @@
 
     btnDownload.onclick = () => {
         let link = document.createElement('a');
-        link.download = 'HEPC_SCAN_v1.5.0.png';
+        link.download = 'HEPC_Result.png';
         link.href = canvasPreview.toDataURL();
         link.click();
     };
