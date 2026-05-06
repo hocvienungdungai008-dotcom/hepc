@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Scanner HEPC v1.4.0</title>
+    <title>Scanner HEPC v1.5.0</title>
     <script async src="https://docs.opencv.org/4.5.5/opencv.js" type="text/javascript"></script>
     <style>
         body { font-family: sans-serif; text-align: center; background: #f0f2f5; margin: 0; padding: 10px; }
@@ -33,12 +33,11 @@
 </div>
 
 <div class="container">
-    <div class="version-tag">VERSION 1.4.0 HEPC</div>
+    <div class="version-tag">VERSION 1.5.0 HEPC</div>
     <h3>MÁY QUÉT BÀI THI HEPC</h3>
     
     <div class="video-container">
         <video id="video" autoplay playsinline></video>
-        <!-- Canvas trung gian để giữ ảnh đã chụp -->
         <canvas id="canvasPreview"></canvas>
     </div>
 
@@ -60,7 +59,6 @@
     let loading = document.getElementById('loadingOverlay');
     let status = document.getElementById('status');
 
-    // Khởi động Camera
     async function init() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
@@ -73,7 +71,6 @@
         }
     }
 
-    // Đợi OpenCV
     function onOpenCvReady() {
         if (typeof cv !== 'undefined' && cv.Mat) {
             init();
@@ -83,7 +80,6 @@
     }
     window.onload = onOpenCvReady;
 
-    // BƯỚC 1: CHỤP ẢNH TĨNH
     btnCapture.onclick = () => {
         canvasPreview.width = video.videoWidth;
         canvasPreview.height = video.videoHeight;
@@ -97,7 +93,6 @@
         status.innerText = "Đã chụp ảnh tĩnh. Nhấn Bước 2 để cắt khung.";
     };
 
-    // BƯỚC 2: XỬ LÝ CẮT KHUNG
     btnProcess.onclick = () => {
         loading.style.display = 'flex';
         
@@ -109,8 +104,17 @@
 
             try {
                 cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
-                cv.GaussianBlur(dst, dst, new cv.Size(5, 5), 0);
-                cv.Canny(dst, dst, 75, 200);
+                
+                // Cập nhật HEPC v1.5.0: Tiền xử lý để khử bóng đổ
+                let msk = new cv.Mat();
+                cv.medianBlur(dst, msk, 15);
+                cv.divide(dst, msk, dst, 255.0);
+                cv.normalize(dst, dst, 0, 255, cv.NORM_MINMAX, cv.CV_8UC1);
+                msk.delete();
+
+                // Tiếp tục xử lý biên
+                cv.GaussianBlur(dst, dst, new cv.Size(15, 15), 0); // Bộ lọc lớn hơn để giảm nhiễu bóng
+                cv.Canny(dst, dst, 20, 80); // Giảm ngưỡng Canny để tăng độ nhạy
                 cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
                 let maxArea = 0, maxIdx = -1;
@@ -122,16 +126,15 @@
                 if (maxIdx !== -1) {
                     let approx = new cv.Mat();
                     let peri = cv.arcLength(contours.get(maxIdx), true);
-                    cv.approxPolyDP(contours.get(maxIdx), approx, 0.02 * peri, true);
+                    cv.approxPolyDP(contours.get(maxIdx), approx, 0.01 * peri, true); // Giảm độ thô approx để khớp biên tốt hơn
 
                     if (approx.rows === 4) {
-                        // Thực hiện cắt
                         doWarp(src, approx);
                         btnProcess.style.display = 'none';
                         btnDownload.style.display = 'block';
                         status.innerText = "Đã cắt thành công!";
                     } else {
-                        throw new Error("Không tìm thấy 4 góc giấy. Hãy chụp lại rõ hơn.");
+                        throw new Error("Không nhận diện được đủ 4 góc do bóng đổ lớn. Hãy thử ảnh ít bóng hơn.");
                     }
                     approx.delete();
                 } else {
@@ -139,9 +142,9 @@
                 }
             } catch (e) {
                 alert(e.message);
-                // Hiển thị ảnh gốc nếu lỗi để vẫn có cái nộp
                 cv.imshow(canvasPreview, src);
                 btnDownload.style.display = 'block';
+                status.innerText = "Sử dụng ảnh gốc.";
             } finally {
                 src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
                 loading.style.display = 'none';
@@ -165,7 +168,6 @@
         let result = new cv.Mat();
         cv.warpPerspective(src, result, M, new cv.Size(outW, outH));
         
-        // Làm nét văn bản
         cv.cvtColor(result, result, cv.COLOR_RGBA2GRAY);
         cv.adaptiveThreshold(result, result, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 15);
         
@@ -174,10 +176,9 @@
         result.delete(); M.delete(); srcCoords.delete(); dstCoords.delete();
     }
 
-    // BƯỚC 3: LƯU FILE
     btnDownload.onclick = () => {
         let link = document.createElement('a');
-        link.download = 'HEPC_SCAN_SUCCESS.png';
+        link.download = 'HEPC_SCAN_v1.5.0.png';
         link.href = canvasPreview.toDataURL();
         link.click();
     };
