@@ -3,191 +3,182 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hệ Thống Quét Bài Thi HEPC</title>
+    <title>Scanner HEPC v1.4.0</title>
     <script async src="https://docs.opencv.org/4.5.5/opencv.js" type="text/javascript"></script>
     <style>
         body { font-family: sans-serif; text-align: center; background: #f0f2f5; margin: 0; padding: 10px; }
         .container { max-width: 600px; margin: auto; background: white; padding: 20px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); position: relative; }
         .version-tag { position: absolute; top: 10px; right: 15px; font-size: 11px; color: #999; font-weight: bold; }
-        .video-container { position: relative; width: 100%; background: #000; border-radius: 10px; overflow: hidden; margin-top: 10px; }
-        video { width: 100%; height: auto; display: block; }
-        canvas { width: 100%; margin-top: 15px; border-radius: 8px; border: 1px solid #ddd; display: none; }
-        .controls { margin: 20px 0; }
-        button { padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; color: white; width: 100%; margin-bottom: 10px; }
-        #captureBtn { background: #007bff; }
-        #captureBtn:disabled { background: #ccc; }
-        #downloadBtn { background: #28a745; display: none; }
+        .video-container { width: 100%; background: #000; border-radius: 10px; overflow: hidden; margin-top: 10px; }
+        video, canvas { width: 100%; height: auto; display: block; border-radius: 8px; }
+        #canvasPreview { display: none; margin-top: 10px; border: 2px solid #007bff; }
+        .controls { margin: 20px 0; display: flex; flex-direction: column; gap: 10px; }
+        button { padding: 15px; font-size: 16px; font-weight: bold; cursor: pointer; border: none; border-radius: 8px; color: white; }
+        #btnCapture { background: #6c757d; }
+        #btnProcess { background: #007bff; display: none; }
+        #btnDownload { background: #28a745; display: none; }
         #loadingOverlay {
             display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(0, 0, 0, 0.8); z-index: 1000; flex-direction: column; justify-content: center; align-items: center; color: white;
         }
         .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 10px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-        #status { font-size: 13px; margin-bottom: 10px; color: #555; }
     </style>
 </head>
 <body>
 
 <div id="loadingOverlay">
     <div class="spinner"></div>
-    <div>Đang xử lý ảnh HEPC...</div>
+    <div id="loadingText">Đang xử lý...</div>
 </div>
 
 <div class="container">
-    <div class="version-tag">VERSION 1.3.0 HEPC</div>
-    <h3>MÁY QUÉT CẦM TAY HEPC</h3>
-    <div id="status">Đang tải thư viện...</div>
+    <div class="version-tag">VERSION 1.4.0 HEPC</div>
+    <h3>MÁY QUÉT BÀI THI HEPC</h3>
     
     <div class="video-container">
         <video id="video" autoplay playsinline></video>
+        <!-- Canvas trung gian để giữ ảnh đã chụp -->
+        <canvas id="canvasPreview"></canvas>
     </div>
 
     <div class="controls">
-        <button id="captureBtn" disabled>QUÉT VÀ CẮT ẢNH</button>
-        <button id="downloadBtn">TẢI FILE ẢNH</button>
+        <button id="btnCapture">BƯỚC 1: CHỤP ẢNH</button>
+        <button id="btnProcess">BƯỚC 2: TÌM KHUNG & CẮT</button>
+        <button id="btnDownload">BƯỚC 3: LƯU FILE QUÉT</button>
     </div>
 
-    <canvas id="outputCanvas"></canvas>
+    <p id="status" style="font-size: 12px; color: #666;">Đang khởi tạo...</p>
 </div>
 
 <script>
-    const video = document.getElementById('video');
-    const captureBtn = document.getElementById('captureBtn');
-    const outputCanvas = document.getElementById('outputCanvas');
-    const status = document.getElementById('status');
-    const loadingOverlay = document.getElementById('loadingOverlay');
-    const downloadBtn = document.getElementById('downloadBtn');
+    let video = document.getElementById('video');
+    let canvasPreview = document.getElementById('canvasPreview');
+    let btnCapture = document.getElementById('btnCapture');
+    let btnProcess = document.getElementById('btnProcess');
+    let btnDownload = document.getElementById('btnDownload');
+    let loading = document.getElementById('loadingOverlay');
+    let status = document.getElementById('status');
 
-    function checkOpenCV() {
-        if (typeof cv !== 'undefined' && cv.Mat) {
-            status.innerText = "Hệ thống HEPC sẵn sàng";
-            captureBtn.disabled = false;
-            startCamera();
-        } else {
-            setTimeout(checkOpenCV, 500);
-        }
-    }
-
-    async function startCamera() {
+    // Khởi động Camera
+    async function init() {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ 
                 video: { facingMode: "environment", width: { ideal: 1280 }, height: { ideal: 720 } } 
             });
             video.srcObject = stream;
-            video.play();
-        } catch (err) {
-            status.innerText = "Lỗi camera: " + err.message;
+            status.innerText = "Sẵn sàng chụp ảnh.";
+        } catch (e) {
+            status.innerText = "Lỗi Camera: " + e.message;
         }
     }
 
-    window.onload = checkOpenCV;
+    // Đợi OpenCV
+    function onOpenCvReady() {
+        if (typeof cv !== 'undefined' && cv.Mat) {
+            init();
+        } else {
+            setTimeout(onOpenCvReady, 500);
+        }
+    }
+    window.onload = onOpenCvReady;
 
-    captureBtn.onclick = () => {
-        loadingOverlay.style.display = 'flex';
-        video.pause();
+    // BƯỚC 1: CHỤP ẢNH TĨNH
+    btnCapture.onclick = () => {
+        canvasPreview.width = video.videoWidth;
+        canvasPreview.height = video.videoHeight;
+        let ctx = canvasPreview.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvasPreview.width, canvasPreview.height);
+        
+        video.style.display = 'none';
+        canvasPreview.style.display = 'block';
+        btnCapture.innerText = "CHỤP LẠI";
+        btnProcess.style.display = 'block';
+        status.innerText = "Đã chụp ảnh tĩnh. Nhấn Bước 2 để cắt khung.";
+    };
 
+    // BƯỚC 2: XỬ LÝ CẮT KHUNG
+    btnProcess.onclick = () => {
+        loading.style.display = 'flex';
+        
         setTimeout(() => {
-            let src, dst, contours, hierarchy, approx;
+            let src = cv.imread(canvasPreview);
+            let dst = new cv.Mat();
+            let contours = new cv.MatVector();
+            let hierarchy = new cv.Mat();
+
             try {
-                const vW = video.videoWidth;
-                const vH = video.videoHeight;
-                if (vW === 0 || vH === 0) throw new Error("Video chưa sẵn sàng.");
-
-                src = new cv.Mat(vH, vW, cv.CV_8UC4);
-                let cap = new cv.VideoCapture(video);
-                cap.read(src);
-
-                dst = new cv.Mat();
                 cv.cvtColor(src, dst, cv.COLOR_RGBA2GRAY);
                 cv.GaussianBlur(dst, dst, new cv.Size(5, 5), 0);
                 cv.Canny(dst, dst, 75, 200);
-
-                contours = new cv.MatVector();
-                hierarchy = new cv.Mat();
                 cv.findContours(dst, contours, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
 
-                let maxArea = 0;
-                let maxContourIndex = -1;
+                let maxArea = 0, maxIdx = -1;
                 for (let i = 0; i < contours.size(); ++i) {
                     let area = cv.contourArea(contours.get(i));
-                    if (area > maxArea) {
-                        maxArea = area;
-                        maxContourIndex = i;
-                    }
+                    if (area > maxArea) { maxArea = area; maxIdx = i; }
                 }
 
-                if (maxContourIndex !== -1) {
-                    let contour = contours.get(maxContourIndex);
-                    let peri = cv.arcLength(contour, true);
-                    approx = new cv.Mat();
-                    cv.approxPolyDP(contour, approx, 0.02 * peri, true);
+                if (maxIdx !== -1) {
+                    let approx = new cv.Mat();
+                    let peri = cv.arcLength(contours.get(maxIdx), true);
+                    cv.approxPolyDP(contours.get(maxIdx), approx, 0.02 * peri, true);
 
-                    if (approx.rows === 4 && cv.contourArea(approx) > (vW * vH * 0.05)) {
-                        applyPerspective(src, approx);
+                    if (approx.rows === 4) {
+                        // Thực hiện cắt
+                        doWarp(src, approx);
+                        btnProcess.style.display = 'none';
+                        btnDownload.style.display = 'block';
+                        status.innerText = "Đã cắt thành công!";
                     } else {
-                        cv.imshow('outputCanvas', src);
-                        status.innerText = "Vùng quét không đạt chuẩn. Lấy ảnh gốc.";
+                        throw new Error("Không tìm thấy 4 góc giấy. Hãy chụp lại rõ hơn.");
                     }
+                    approx.delete();
                 } else {
-                    cv.imshow('outputCanvas', src);
+                    throw new Error("Không nhận diện được khung bài thi.");
                 }
-
-                outputCanvas.style.display = 'block';
-                downloadBtn.style.display = 'block';
-
-            } catch (err) {
-                alert("Lỗi HEPC: " + err.message);
+            } catch (e) {
+                alert(e.message);
+                // Hiển thị ảnh gốc nếu lỗi để vẫn có cái nộp
+                cv.imshow(canvasPreview, src);
+                btnDownload.style.display = 'block';
             } finally {
-                if (src) src.delete(); if (dst) dst.delete();
-                if (contours) contours.delete(); if (hierarchy) hierarchy.delete();
-                if (approx) approx.delete();
-                loadingOverlay.style.display = 'none';
-                video.play();
+                src.delete(); dst.delete(); contours.delete(); hierarchy.delete();
+                loading.style.display = 'none';
             }
-        }, 500);
+        }, 300);
     };
 
-    function applyPerspective(src, approx) {
+    function doWarp(src, approx) {
         let pts = [];
-        for (let i = 0; i < 4; i++) {
-            pts.push({ x: approx.data32S[i * 2], y: approx.data32S[i * 2 + 1] });
-        }
-
-        // Sắp xếp tọa độ theo thứ tự: TL, TR, BR, BL (Clockwise)
+        for (let i = 0; i < 4; i++) pts.push({ x: approx.data32S[i * 2], y: approx.data32S[i * 2 + 1] });
+        
         pts.sort((a, b) => a.y - b.y);
         let top = pts.slice(0, 2).sort((a, b) => a.x - b.x);
         let bottom = pts.slice(2, 4).sort((a, b) => a.x - b.x);
-        let sortedPts = [top[0], top[1], bottom[1], bottom[0]];
-
-        let srcCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [
-            sortedPts[0].x, sortedPts[0].y,
-            sortedPts[1].x, sortedPts[1].y,
-            sortedPts[2].x, sortedPts[2].y,
-            sortedPts[3].x, sortedPts[3].y
-        ]);
-
-        const outW = 800;
-        const outH = 1131;
+        
+        let srcCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [top[0].x, top[0].y, top[1].x, top[1].y, bottom[1].x, bottom[1].y, bottom[0].x, bottom[0].y]);
+        let outW = 800, outH = 1131;
         let dstCoords = cv.matFromArray(4, 1, cv.CV_32FC2, [0, 0, outW, 0, outW, outH, 0, outH]);
 
         let M = cv.getPerspectiveTransform(srcCoords, dstCoords);
         let result = new cv.Mat();
+        cv.warpPerspective(src, result, M, new cv.Size(outW, outH));
         
-        // Kiểm tra ma trận M trước khi warp để tránh "Bad Size"
-        if (!M.empty()) {
-            cv.warpPerspective(src, result, M, new cv.Size(outW, outH));
-            cv.cvtColor(result, result, cv.COLOR_RGBA2GRAY);
-            cv.adaptiveThreshold(result, result, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 15);
-            cv.imshow('outputCanvas', result);
-        }
-
+        // Làm nét văn bản
+        cv.cvtColor(result, result, cv.COLOR_RGBA2GRAY);
+        cv.adaptiveThreshold(result, result, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY, 11, 15);
+        
+        cv.imshow(canvasPreview, result);
+        
         result.delete(); M.delete(); srcCoords.delete(); dstCoords.delete();
     }
 
-    downloadBtn.onclick = () => {
-        const link = document.createElement('a');
-        link.download = 'HEPC_Scan.png';
-        link.href = outputCanvas.toDataURL();
+    // BƯỚC 3: LƯU FILE
+    btnDownload.onclick = () => {
+        let link = document.createElement('a');
+        link.download = 'HEPC_SCAN_SUCCESS.png';
+        link.href = canvasPreview.toDataURL();
         link.click();
     };
 </script>
