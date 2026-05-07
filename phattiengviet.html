@@ -1,0 +1,88 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phát âm Tiếng Việt</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f2f5;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 400px;
+        }
+        h2 { color: #1a73e8; }
+        input[type="text"] {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            background-color: #1a73e8;
+            color: white;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        button:hover {
+            background-color: #1557b0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Loa Phát Thanh 👋</h2>
+    <p>Nhập câu tiếng Việt vào đây:</p>
+    <input type="text" id="text-to-speak" placeholder="Ví dụ: Xin chào Việt Nam..." value="Xin chào, chúc bạn một ngày tốt lành!">
+    <br>
+    <button onclick="speak()">Bấm để nghe OK</button>
+</div>
+
+<script>
+    function speak() {
+        // Lấy nội dung từ ô input
+        const text = document.getElementById('text-to-speak').value;
+
+        if (text.trim() === "") {
+            alert("Vui lòng nhập nội dung nào đó!");
+            return;
+        }
+
+        // Tạo đối tượng SpeechSynthesisUtterance
+        const msg = new SpeechSynthesisUtterance();
+        msg.text = text;
+        
+        // Thiết lập ngôn ngữ là Tiếng Việt
+        msg.lang = 'vi-VN';
+        
+        // Tùy chỉnh tốc độ và cao độ (nếu muốn)
+        msg.rate = 1; // Tốc độ (0.1 đến 10)
+        msg.pitch = 1; // Độ cao (0 đến 2)
+
+        // Thực hiện phát âm
+        window.speechSynthesis.speak(msg);
+    }
+</script>
+
+</body>
+</html>
